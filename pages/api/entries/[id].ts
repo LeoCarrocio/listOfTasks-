@@ -1,89 +1,83 @@
-import mongoose from 'mongoose';
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { db } from '../../../database';
-import { Entry, IEntry } from '../../../models'
+import mongoose from 'mongoose';
 
-type Data = | { message: string } 
+import { db } from '../../../database';
+import { Entry, IEntry } from '../../../models';
+
+type Data = 
+| { message: string } 
 | IEntry
 
-export default function handler(
-  _req: NextApiRequest,
-  res: NextApiResponse<Data>
-) {
+export default function handler(req: NextApiRequest, res: NextApiResponse<Data>) {
 
-  const { id } = _req.query;
+    const { id } = req.query;
 
-  if (!mongoose.isValidObjectId(id)){
-    return res.status(400).json({ message: 'id is not valid' });
-  }
-
-  switch (_req.method) {
-    case 'PUT':
-      return updateEntry(_req, res);
+    if ( !mongoose.isValidObjectId( id ) ) {
+        return res.status(400).json({ message: 'El id no es válido ' + id })
+    }
     
-    case 'GET':
-      return getEntry(_req, res);
-  
-    default:
-      return res.status(400).json({ message: 'Endpoint does not exist ' })
+    switch ( req.method ) {
+        case 'PUT':
+            return updateEntry( req, res );
 
-  }
+        case 'GET':
+            return getEntry( req, res );
+
+            
+        default:
+            return res.status(400).json({ message: 'Método no existe ' + req.method });
+    }
 
 }
 
-
-const updateEntry = async (_req: NextApiRequest, res: NextApiResponse<Data>) => {
-
-  const { id } = _req.query;
-
-  await db.connect();
-
-  const entryToUpdate = await Entry.findById(id);
-
-  if(!entryToUpdate){
-    await db.disconnect();
-    return res.status(400).json({ message: 'id does not exist' })
-  }
-
- const {
-  description = entryToUpdate.description,
-  status = entryToUpdate.status
- } = _req.body;
-  
- try {
-   //runValidators= valida el estutus permitido , new= nos devuelve la info actualizada
-    const updatedEntry = await Entry.findByIdAndUpdate(id, {description, status}, {runValidators: true, new : true}); 
+const getEntry = async( req: NextApiRequest, res: NextApiResponse ) => {
     
-    // es lo mismos q hacer lo de arriva 
-    // entryToUpdate.description
-    //entryToUpdate.status=status;
+    const { id } = req.query;
+
+    await db.connect();
+    const entryInDB = await Entry.findById( id );
+    await db.disconnect();
+
+    if ( !entryInDB ) {
+        return res.status(400).json({ message: 'No hay entrada con ese ID: ' + id })
+    }
+
+    return res.status(200).json( entryInDB );
+}
+
+
+
+const updateEntry = async( req: NextApiRequest, res: NextApiResponse<Data> ) => {
+    
+    const { id } = req.query;
+
+    await db.connect();
+
+    const entryToUpdate = await Entry.findById( id );
+
+    if ( !entryToUpdate ) {
+        await db.disconnect();
+        return res.status(400).json({ message: 'No hay entrada con ese ID: ' + id })
+    }
+
+    const {
+        description = entryToUpdate.description,
+        status = entryToUpdate.status,
+    } = req.body;
+
+    try {
+        const updatedEntry = await Entry.findByIdAndUpdate( id, { description, status }, { runValidators: true, new: true });
+        await db.disconnect();
+        res.status(200).json( updatedEntry! );
+        
+    } catch (error: any) {
+        await db.disconnect();
+        res.status(400).json({ message: error.errors.status.message });
+    }
+    // entryToUpdate.description = description;
+    // entryToUpdate.status = status;
     // await entryToUpdate.save();
-   
-    await db.disconnect();
-   
-    res.status(200).json(updatedEntry!)
 
- } catch (error) {
-  await db.disconnect();
-  console.log(error)
-  return res.status(400).json({ message: ' Bad request' })
- }
 
-}
-
-const getEntry = async (_req: NextApiRequest, res: NextApiResponse<Data>) =>{
-
-  const { id } = _req.query;
-  
-  await db.connect();
-
-  const entry = await Entry.findById(id);
-  
-  await db.disconnect();
-  if(!entry){
-    return res.status(400).json({ message: 'id does not exist' })
-  }
-
-  res.status(200).json(entry!)
 
 }
